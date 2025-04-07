@@ -1,0 +1,11 @@
+*.*
+Debug/
+!.gitattributes
+!.gitignore
+!readme.md
+!.gitkeep
+!Lab8Main.c
+!UART1.c
+!UART1.h
+!UART2.c
+!UART2.h
