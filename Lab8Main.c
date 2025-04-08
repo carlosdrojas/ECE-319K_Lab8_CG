@@ -184,6 +184,8 @@ int main4(void){ // main4, loop back test
   }
 }
 
+
+
 // sampling frequency is 30 Hz
 void TIMG12_IRQHandler(void){uint32_t pos,msg;
   if((TIMG12->CPU_INT.IIDX) == 1){ // this will acknowledge
