@@ -15,6 +15,7 @@
 #include "../inc/Timer.h"
 #include "../inc/ADC1.h"
 #include "../inc/FIFO1.h"
+#include "../inc/FIFO1.h"
 #include "UART1.h"
 #include "UART2.h"
 // ****note to students****
@@ -54,7 +55,7 @@ void myFifo_Init(uint32_t size);
 uint32_t myFifo_Put(char data);
 char myFifo_Get(void);
 uint32_t FifoError;
-int main(void){ // use main1 to test your FIFO1
+int main1(void){ // use main1 to test your FIFO1
   char me,you;
   char data;
   __disable_irq();
@@ -67,7 +68,7 @@ int main(void){ // use main1 to test your FIFO1
   M = 4; // seed
   FifoError = 0;
   // myFifo_Init(16) means FIFO can store up to 15 elements
-  myFifo_Init(16); // change 16 to match your FIFO size
+  myFifo_Init(7); // change 16 to match your FIFO size
   for(uint32_t i = 0; i<10000; i++){
     uint32_t k = Random(4);
     for(uint32_t l=0; l<k ;l++){
@@ -186,15 +187,39 @@ int main4(void){ // main4, loop back test
 // sampling frequency is 30 Hz
 void TIMG12_IRQHandler(void){uint32_t pos,msg;
   if((TIMG12->CPU_INT.IIDX) == 1){ // this will acknowledge
-   GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27 (minimally intrusive debugging)
+   //GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27 (minimally intrusive debugging)
+     GPIOB->DOUTTGL31_0 = (1 << 27);  // PB27 HIGH or LOW
+
     // increment TransmitCount
+    
     // sample
-    GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27 (minimally intrusive debugging)
+  uint32_t adc = ADCin();             // Sample the potentiometer
+    GPIOB->DOUTTGL31_0 = (1 << 27);  // PB27 HIGH or LOW
+
+  uint32_t pos = Convert(adc);        // Convert to 0.001 cm (0–2000)
+
+  
+
+    //GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27 (minimally intrusive debugging)
     // convert to fixed point distance
     // output 4-frame message
 
+  char message[5];
+  message[0] = '0' + pos / 1000;
+  message[1] = '.';
+  message[2] = '0' + (pos / 100) % 10;
+  message[3] = '0' + (pos / 10) % 10;
+  message[4] = '0' + pos % 10;
 
-    GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27 (minimally intrusive debugging)
+  UART1_OutChar('<');  // Start-of-frame marker
+  for(int i = 0; i < 5; i++){
+    UART1_OutChar(message[i]);
+  }
+
+  TransmitCount++;
+
+
+  GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27 (minimally intrusive debugging)
 
   }
 }
@@ -207,7 +232,48 @@ uint8_t TExaS_LaunchPadLogicPB27PB26(void){
 // Data should go from 0 to 4095 in transmitter
 // Position should go from 0 to 2000 in receiver
 // LCD should show 0.00cm to 2.00 cm
-int main5(void){ // main5
+
+void OutFix(uint32_t n){
+// resolution is 0.001cm
+// n is integer 0 to 2000
+// output to ST7735 0.000cm to 2.000cm
+ // write this
+
+  int32_t whole = n / 1000;
+  int32_t frac = n % 1000; 
+
+  printf("d = ");
+  ST7735_OutChar('0' + whole);        
+  ST7735_OutChar('.');
+  ST7735_OutChar('0' + (frac / 100));       
+  ST7735_OutChar('0' + ((frac / 10) % 10)); 
+  ST7735_OutChar('0' + (frac % 10));        
+  ST7735_OutString(" cm");
+}
+
+// void TimerG12_IRQHandler(void){
+//   uint32_t adc = ADCin();             // Sample the potentiometer
+//   uint32_t pos = Convert(adc);        // Convert to 0.001 cm (0–2000)
+
+//   TransmitCount++;
+
+//   char message[5];
+//   message[0] = '0' + pos / 1000;
+//   message[1] = '.';
+//   message[2] = '0' + (pos / 100) % 10;
+//   message[3] = '0' + (pos / 10) % 10;
+//   message[4] = '0' + pos % 10;
+
+//   UART1_OutChar('<');  // Start-of-frame marker
+//   for(int i = 0; i < 5; i++){
+//     UART1_OutChar(message[i]);
+//   }
+
+//   //TIMG12->COMMONREGS.ICR = 1; // Acknowledge interrupt
+//   //TIMG12->CPU_INT.IIDX = 1;
+// }
+
+int main(void){ // main5
   __disable_irq();
   PLL_Init(); // set bus speed
   LaunchPad_Init();
@@ -222,11 +288,38 @@ int main5(void){ // main5
   TExaS_Init(0,0,&TExaS_LaunchPadLogicPB27PB26); // PB27 and PB26
   ST7735_PlotClear(0,2000);
     // initialize interrupts on TimerG12 at 30 Hz
+  TimerG12_IntArm(80000000 / 30, 2); // 30 Hz sampling (TimerG12 interrupt)
+
   
   __enable_irq();
 
-  while(1){uint32_t PositionReceived;
+  char data;
+  char message[5];       // to store <x.xx
+  uint32_t PositionReceived = 0;
+
+  while(1){
  // complete this
+
+  // Wait for start frame '<'
+    do {
+      data = UART2_InChar();
+    } while (data != '<');
+
+    // Once '<' is received, grab next 4 chars
+    for (int i = 0; i < 4; i++) {
+      message[i] = UART2_InChar();
+    }
+
+    ReceiveCount++;
+
+    // Now parse the 4 characters (e.g., "1.45")
+    // Convert ASCII to digits
+    uint32_t ones      = message[0] - '0';
+    uint32_t tenths    = message[2] - '0';
+    uint32_t hundredths= message[3] - '0';
+
+    // Convert to fixed point (0.001 cm units)
+    PositionReceived = 1000 * ones + 100 * tenths + 10 * hundredths;
 
     // move cursor to top left
     // wait for first frame
@@ -234,6 +327,9 @@ int main5(void){ // main5
     // receive next three frames
     GPIOB->DOUTTGL31_0 = RED; // toggle PB26 (minimally intrusive debugging)
       // output distance to ST7735
+  // Print value
+    ST7735_SetCursor(0, 0);
+    OutFix(PositionReceived);   // Output in 0.001 cm format (e.g., 1.450 cm)
  // calculate PositionReceived from message
     if((ReceiveCount%15)==0){
       ST7735_PlotPoint(PositionReceived);

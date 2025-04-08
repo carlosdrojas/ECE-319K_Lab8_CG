@@ -25,26 +25,84 @@ void UART2_Init(void){
     //   bits 31-24 unlock key 0xB1
     //   bit 1 is Clear reset sticky bit
     //   bit 0 is reset gpio port
- // GPIOA->GPRCM.RSTCTL = (uint32_t)0xB1000003; // called previously
-  UART2->GPRCM.RSTCTL = 0xB1000003;
+  //GPIOA->GPRCM.RSTCTL = (uint32_t)0xB1000003; // called previously
+  //UART2->GPRCM.RSTCTL = 0xB1000003;
     // Enable power to GPIOA and UART1 peripherals
      // write this
+
+  UART2->GPRCM.RSTCTL = 0xB1000003;
+  UART2->GPRCM.PWREN = 0x26000001;
+  Clock_Delay(24); // time for uart to power up
+  IOMUX->SECCFG.PINCM[PA22INDEX] = 0x00040082;
+  Fifo1_Init();
+  UART2->CLKSEL = 0x08; // bus 
+  UART2->CLKDIV = 0x00; // no 
+  UART2->CTL0 &= ~0x01; // disable 
+  UART2->CTL0 = 0x00020018;
+  // assumes an 80 MHz bus 
+  UART2->IBRD = 1249;// divider = 21+45/64 = 21.
+  UART2->FBRD = 64; // baud =2,500,000/21.703125 = 115,
+  UART2->LCRH = 0x00000030;
+  UART2->CPU_INT.IMASK = 0x01;
+  // bit 11 TXINT
+  // bit 10 RXINT
+  // bit 0 Receive timeout
+  UART2->IFLS = 0x0422;
+  // bits 11-8 RXTOSEL receiver timeout select 4 (0xF highest)
+  // bits 6-4 RXIFLSEL 2 is greater than or equal to half
+  // bits 2-0 TXIFLSEL 2 is less than or equal to half
+  NVIC->ICPR[0] = 1<<14; // UART0 is IRQ 15
+  NVIC->ISER[0] = 1<<14;
+  NVIC->IP[3] = (NVIC->IP[3]&(~0xFFF00000))|(2<<22); // priority (bits 31,30)
+  UART2->CTL0 |= 0x01; // enable UART0
+
 }
 //------------UART2_InChar------------
 // Get new serial port receive data from FIFO1
 // Input: none
 // Output: Return 0 if the FIFO1 is empty
 //         Return nonzero data from the FIFO1 if available
+
 char UART2_InChar(void){
-  return 0; // write this
+  //return 0; // write this
+  char data = Fifo1_Get();
+  while(data == 0) {
+    // wait until there's data in the FIFO
+    data = Fifo1_Get();
+  }
+  return data;
 }
 
 
-void UART2_IRQHandler(void){ uint32_t status; char letter;
-// write this
-// acknowledge RTOUT
-  GPIOB->DOUTTGL31_0 = BLUE; // toggle PB22 (minimally intrusive debugging)
-  GPIOB->DOUTTGL31_0 = BLUE; // toggle PB22 (minimally intrusive debugging)
-  // read all data and put in FIFO1
-  GPIOB->DOUTTGL31_0 = BLUE; // toggle PB22 (minimally intrusive debugging)
+// void UART2_IRQHandler(void){ uint32_t status; char letter;
+// // write this
+// // acknowledge RTOUT
+//   GPIOB->DOUTTGL31_0 = BLUE; // toggle PB22 (minimally intrusive debugging)
+//   GPIOB->DOUTTGL31_0 = BLUE; // toggle PB22 (minimally intrusive debugging)
+//   // read all data and put in FIFO1
+//   GPIOB->DOUTTGL31_0 = BLUE; // toggle PB22 (minimally intrusive debugging)
+// }
+
+
+void static copyHardwareToSoftware(void){
+  char letter;
+  while (((UART2->STAT&0x04) == 0)) {
+    letter = UART2->RXDATA;
+    Fifo1_Put(letter);
+  }
 }
+
+void UART2_IRQHandler(void) { 
+  uint32_t status;
+  status = UART2->CPU_INT.IIDX; // reading clears bit in RIS
+  if(status == 0x01){   // 0x01 receive timeout
+
+    GPIOB->DOUTTGL31_0 = (1 << 27);
+    GPIOB->DOUTTGL31_0 = (1 << 27);
+    GPIOB->DOUTTGL31_0 = (1 << 27);
+
+    copyHardwareToSoftware();
+  }
+}
+
+
