@@ -101,6 +101,10 @@ void UART2_IRQHandler(void) {
     GPIOB->DOUTTGL31_0 = (1 << 27);
     GPIOB->DOUTTGL31_0 = (1 << 27);
 
+    // GPIOB->DOUTTGL31_0 = (1 << 27);
+    // GPIOB->DOUTTGL31_0 = (1 << 27);
+    // GPIOB->DOUTTGL31_0 = (1 << 27);
+
     copyHardwareToSoftware();
   }
 }

@@ -122,7 +122,7 @@ int main1(void){ // use main1 to test your FIFO1
 
 // use main2 to test UART1 blind transmission
 // no interrupts, just PA8 U1Tx output
-int main2(void){ // main2
+int mai2(void){ // main2
   __disable_irq();
   PLL_Init();   // set bus speed
   LaunchPad_Init();
@@ -190,7 +190,9 @@ int main4(void){ // main4, loop back test
 void TIMG12_IRQHandler(void){uint32_t pos,msg;
   if((TIMG12->CPU_INT.IIDX) == 1){ // this will acknowledge
    //GPIOB->DOUTTGL31_0 = GREEN; // toggle PB27 (minimally intrusive debugging)
-     GPIOB->DOUTTGL31_0 = (1 << 27);  // PB27 HIGH or LOW
+    //  GPIOB->DOUTTGL31_0 = (1 << 27);  // PB27 HIGH or LOW
+    //  GPIOB->DOUTTGL31_0 = (1 << 27);  // PB27 HIGH or LOW
+    //  GPIOB->DOUTTGL31_0 = (1 << 27);  // PB27 HIGH or LOW
 
     // increment TransmitCount
     
